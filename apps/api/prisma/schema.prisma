@@ -1,0 +1,678 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CUSTOMER
+  PROVIDER
+  BUSINESS_OWNER
+  BUSINESS_STAFF
+  DELIVERY_PARTNER
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  PROVIDER_ON_THE_WAY
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum DeliveryStatus {
+  ORDER_CONFIRMED
+  PICKUP_PENDING
+  PICKED_UP
+  IN_TRANSIT
+  ARRIVING
+  DELIVERED
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  BKASH
+  NAGAD
+  SSLCOMMERZ
+  CASH_ON_DELIVERY
+  WALLET
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum TailoringStage {
+  MEASUREMENT
+  DESIGN_CONFIRMATION
+  FABRIC
+  CUTTING
+  STITCHING
+  QUALITY_CHECK
+  READY
+  DELIVERY
+}
+
+enum CaregiverSpecialization {
+  ELDERLY_CARE
+  PATIENT_ASSISTANCE
+  CHILDCARE
+  COMPANION_CARE
+  HOME_ASSISTANCE
+}
+
+enum RentalType {
+  PROPERTY
+  VEHICLE
+  EQUIPMENT
+}
+
+enum EmergencyServiceType {
+  AMBULANCE
+  ROADSIDE_ASSISTANCE
+  EMERGENCY_UTILITY
+}
+
+model User {
+  id              String           @id @default(uuid())
+  phone           String           @unique
+  email           String?          @unique
+  passwordHash    String
+  fullName        String
+  avatarUrl       String?
+  role            Role             @default(CUSTOMER)
+  isVerified      Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  customerProfile CustomerProfile?
+  providerProfile ProviderProfile?
+  businesses      Business[]
+  caregiver       CaregiverProfile?
+  bookings        Booking[]        @relation("CustomerBookings")
+  orders          Order[]
+  reviewsGiven    Review[]         @relation("Reviewer")
+  notifications   Notification[]
+  sentMessages    Message[]        @relation("SentMessages")
+  recvMessages    Message[]        @relation("ReceivedMessages")
+  measurements    MeasurementProfile[]
+  carePlans       CarePlan[]
+  careRecipients  CareRecipient[]
+  tailoringOrders TailoringOrder[] @relation("CustomerTailoringOrders")
+  rentalListings  RentalListing[]
+
+  @@index([phone])
+  @@index([email])
+  @@index([role])
+}
+
+model CustomerProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultAddress  String?
+  defaultArea     String?
+  defaultCity     String?  @default("Dhaka")
+  savedAddresses  Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ProviderProfile {
+  id                    String             @id @default(uuid())
+  userId                String             @unique
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headline              String
+  bio                   String
+  experienceYears       Int                @default(1)
+  rating                Float              @default(5.0)
+  reviewCount           Int                @default(0)
+  verificationStatus    VerificationStatus @default(UNVERIFIED)
+  nidVerified           Boolean            @default(false)
+  tradeLicenseVerified  Boolean            @default(false)
+  nidNumber             String?
+  tradeLicenseNumber    String?
+  basePrice             Float              @default(500)
+  isAvailableToday      Boolean            @default(true)
+  address               String
+  area                  String
+  city                  String             @default("Dhaka")
+  latitude              Float?
+  longitude             Float?
+  portfolio             String[]           @default([])
+  badges                String[]           @default([])
+  cancellationPolicy    String             @default("Free cancellation up to 2 hours before scheduled time.")
+  completedJobsCount    Int                @default(0)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  serviceAreas          ServiceArea[]
+  availabilities        Availability[]
+  bookings              Booking[]          @relation("ProviderBookings")
+  reviews               Review[]           @relation("ProviderReviews")
+  services              ProviderService[]
+  tailoringJobs         TailoringOrder[]   @relation("TailorOrders")
+
+  @@index([area])
+  @@index([city])
+  @@index([rating])
+  @@index([verificationStatus])
+}
+
+model ServiceCategory {
+  id          String    @id @default(uuid())
+  slug        String    @unique
+  name        String
+  nameBn      String?
+  description String
+  iconName    String
+  group       String
+  orderIndex  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  services    Service[]
+
+  @@index([slug])
+  @@index([group])
+}
+
+model Service {
+  id               String            @id @default(uuid())
+  categoryId       String
+  category         ServiceCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name             String
+  nameBn           String?
+  slug             String            @unique
+  description      String
+  startingPrice    Float
+  priceUnit        String            @default("starting from")
+  durationEstimate String?
+  isPopular        Boolean           @default(false)
+  icon             String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  providerServices ProviderService[]
+  bookings         Booking[]
+
+  @@index([categoryId])
+  @@index([slug])
+  @@index([isPopular])
+}
+
+model ProviderService {
+  id          String          @id @default(uuid())
+  providerId  String
+  provider    ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  serviceId   String
+  service     Service         @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  customPrice Float?
+
+  @@unique([providerId, serviceId])
+}
+
+model ServiceArea {
+  id         String          @id @default(uuid())
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  areaName   String
+  city       String          @default("Dhaka")
+  radiusKm   Float           @default(5.0)
+
+  @@index([areaName])
+  @@index([city])
+}
+
+model Availability {
+  id          String          @id @default(uuid())
+  providerId  String
+  provider    ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  isAvailable Boolean         @default(true)
+
+  @@index([providerId, dayOfWeek])
+}
+
+model Booking {
+  id                String             @id @default(uuid())
+  trackingCode      String             @unique
+  customerId        String
+  customer          User               @relation("CustomerBookings", fields: [customerId], references: [id])
+  providerId        String
+  provider          ProviderProfile    @relation("ProviderBookings", fields: [providerId], references: [id])
+  serviceId         String
+  service           Service            @relation(fields: [serviceId], references: [id])
+  status            BookingStatus      @default(PENDING)
+  scheduledDate     String
+  scheduledTimeSlot String
+  address           String
+  area              String
+  city              String             @default("Dhaka")
+  notes             String?
+  totalAmount       Float
+  paymentMethod     PaymentMethod      @default(CASH_ON_DELIVERY)
+  paymentStatus     PaymentStatus      @default(PENDING)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  statusLogs        BookingStatusLog[]
+  reviews           Review[]
+  disputes          Dispute[]
+
+  @@index([customerId])
+  @@index([providerId])
+  @@index([status])
+  @@index([trackingCode])
+}
+
+model BookingStatusLog {
+  id        String        @id @default(uuid())
+  bookingId String
+  booking   Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  status    BookingStatus
+  note      String?
+  createdAt DateTime      @default(now())
+
+  @@index([bookingId])
+}
+
+model Business {
+  id                 String     @id @default(uuid())
+  ownerId            String
+  owner              User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  businessName       String
+  slug               String     @unique
+  category           String
+  tradeLicenseNumber String?
+  isVerified         Boolean    @default(false)
+  address            String
+  area               String
+  city               String     @default("Dhaka")
+  latitude           Float?
+  longitude          Float?
+  rating             Float      @default(4.8)
+  openingHours       String     @default("9:00 AM - 10:00 PM")
+  logoUrl            String?
+  bannerUrl          String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  products           Product[]
+  orders             Order[]
+  reviews            Review[]   @relation("BusinessReviews")
+
+  @@index([slug])
+  @@index([area])
+  @@index([category])
+}
+
+model Product {
+  id            String      @id @default(uuid())
+  businessId    String
+  business      Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name          String
+  description   String
+  price         Float
+  discountPrice Float?
+  inStock       Boolean     @default(true)
+  stockCount    Int         @default(100)
+  category      String
+  imageUrl      String?
+  unit          String      @default("piece")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  orderItems    OrderItem[]
+
+  @@index([businessId])
+  @@index([category])
+}
+
+model Order {
+  id              String         @id @default(uuid())
+  orderNumber     String         @unique
+  customerId      String
+  customer        User           @relation(fields: [customerId], references: [id])
+  businessId      String
+  business        Business       @relation(fields: [businessId], references: [id])
+  subtotal        Float
+  deliveryFee     Float          @default(60)
+  total           Float
+  deliveryStatus  DeliveryStatus @default(ORDER_CONFIRMED)
+  deliveryAddress String
+  area            String
+  city            String         @default("Dhaka")
+  paymentMethod   PaymentMethod  @default(CASH_ON_DELIVERY)
+  paymentStatus   PaymentStatus  @default(PENDING)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  items           OrderItem[]
+  deliveries      Delivery[]
+
+  @@index([orderNumber])
+  @@index([customerId])
+  @@index([businessId])
+}
+
+model OrderItem {
+  id          String   @id @default(uuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  productName String
+  price       Float
+  quantity    Int
+
+  @@index([orderId])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  transactionId String        @unique
+  amount        Float
+  currency      String        @default("BDT")
+  gateway       PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  referenceType String
+  referenceId   String
+  metadata      Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([transactionId])
+  @@index([referenceId])
+}
+
+model Review {
+  id             String           @id @default(uuid())
+  bookingId      String?
+  booking        Booking?         @relation(fields: [bookingId], references: [id])
+  reviewerId     String
+  reviewer       User             @relation("Reviewer", fields: [reviewerId], references: [id])
+  providerId     String?
+  provider       ProviderProfile? @relation("ProviderReviews", fields: [providerId], references: [id])
+  businessId     String?
+  business       Business?        @relation("BusinessReviews", fields: [businessId], references: [id])
+  rating         Float
+  comment        String
+  createdAt      DateTime         @default(now())
+
+  @@index([providerId])
+  @@index([businessId])
+}
+
+model Conversation {
+  id             String    @id @default(uuid())
+  participantIds String[]
+  lastMessageAt  DateTime  @default(now())
+  messages       Message[]
+
+  @@index([lastMessageAt])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id])
+  recipientId    String
+  recipient      User         @relation("ReceivedMessages", fields: [recipientId], references: [id])
+  content        String
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Delivery {
+  id               String         @id @default(uuid())
+  trackingNumber   String         @unique
+  orderId          String
+  order            Order          @relation(fields: [orderId], references: [id])
+  status           DeliveryStatus @default(ORDER_CONFIRMED)
+  pickupAddress    String
+  dropoffAddress   String
+  estimatedMinutes Int            @default(30)
+  currentLat       Float?
+  currentLng       Float?
+  updatedAt        DateTime       @updatedAt
+
+  @@index([trackingNumber])
+}
+
+model MeasurementProfile {
+  id           String   @id @default(uuid())
+  customerId   String
+  customer     User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  profileName  String
+  gender       String
+  garmentType  String
+  measurements Json
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+model TailoringOrder {
+  id                         String         @id @default(uuid())
+  orderNumber                String         @unique
+  customerId                 String
+  customer                   User           @relation("CustomerTailoringOrders", fields: [customerId], references: [id])
+  tailorId                   String
+  tailor                     ProviderProfile @relation("TailorOrders", fields: [tailorId], references: [id])
+  garmentType                String
+  measurementProfileId       String?
+  measurementVisitRequested  Boolean        @default(false)
+  fabricSource               String
+  fabricDetails              String?
+  specialInstructions        String?
+  currentStage               TailoringStage @default(MEASUREMENT)
+  estimatedDeliveryDate      String
+  totalPrice                 Float
+  paymentStatus              PaymentStatus  @default(PENDING)
+  deliveryAddress            String
+  area                       String
+  createdAt                  DateTime       @default(now())
+  updatedAt                  DateTime       @updatedAt
+
+  @@index([orderNumber])
+  @@index([customerId])
+  @@index([tailorId])
+}
+
+model CaregiverProfile {
+  id                      String   @id @default(uuid())
+  userId                  String   @unique
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specializations         String[] @default([])
+  experienceYears         Int      @default(3)
+  certifications          String[] @default([])
+  backgroundCheckVerified Boolean  @default(false)
+  nidVerified             Boolean  @default(true)
+  rating                  Float    @default(4.9)
+  reviewCount             Int      @default(12)
+  dailyRate               Float    @default(1200)
+  monthlyRate             Float    @default(25000)
+  availabilitySchedule    String   @default("8:00 AM - 8:00 PM")
+  serviceAreas            String[] @default(["Dhanmondi", "Mohammadpur", "Gulshan", "Uttara"])
+  emergencyContact        String   @default("01711000000")
+  bio                     String
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+model CareRecipient {
+  id               String   @id @default(uuid())
+  customerId       String
+  customer         User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name             String
+  age              Int
+  gender           String
+  medicalNotes     String?
+  emergencyContact String
+  createdAt        DateTime @default(now())
+
+  @@index([customerId])
+}
+
+model CarePlan {
+  id                   String                  @id @default(uuid())
+  customerId           String
+  customer             User                    @relation(fields: [customerId], references: [id])
+  caregiverId          String
+  recipientName        String
+  recipientAge         Int
+  condition            String
+  specializationNeeded CaregiverSpecialization
+  frequency            String
+  startDate            String
+  endDate              String?
+  status               String                  @default("ACTIVE")
+  notes                String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  sessions             CareSession[]
+
+  @@index([customerId])
+}
+
+model CareSession {
+  id              String    @id @default(uuid())
+  carePlanId      String
+  carePlan        CarePlan  @relation(fields: [carePlanId], references: [id], onDelete: Cascade)
+  caregiverId     String
+  date            String
+  checkInTime     String?
+  checkOutTime    String?
+  notes           String?
+  vitalsRecorded  Json?
+  status          String    @default("COMPLETED")
+  createdAt       DateTime  @default(now())
+
+  @@index([carePlanId])
+}
+
+model RentalListing {
+  id            String     @id @default(uuid())
+  title         String
+  slug          String     @unique
+  type          RentalType
+  ownerId       String
+  owner         User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  location      String
+  city          String     @default("Dhaka")
+  area          String
+  pricePerDay   Float?
+  pricePerMonth Float?
+  images        String[]   @default([])
+  specs         Json?
+  description   String
+  rules         String[]   @default([])
+  isAvailable   Boolean    @default(true)
+  rating        Float      @default(4.7)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([slug])
+  @@index([type])
+  @@index([area])
+}
+
+model EmergencyProvider {
+  id                         String               @id @default(uuid())
+  name                       String
+  serviceType                EmergencyServiceType
+  phone                      String
+  altPhone                   String?
+  operatingAreas             String[]             @default([])
+  vehicleType                String?
+  isAvailable247             Boolean              @default(true)
+  verifiedEmergencyProvider Boolean              @default(true)
+  etaMinutes                 Int                  @default(15)
+  createdAt                  DateTime             @default(now())
+
+  @@index([serviceType])
+}
+
+model Verification {
+  id                  String             @id @default(uuid())
+  targetType          String
+  targetId            String
+  nidNumber           String?
+  nidDocUrl           String?
+  tradeLicenseDocUrl  String?
+  status              VerificationStatus @default(PENDING_REVIEW)
+  reviewerNotes       String?
+  verifiedAt          DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([targetId])
+  @@index([status])
+}
+
+model Dispute {
+  id          String   @id @default(uuid())
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id])
+  reporterId  String
+  reason      String
+  description String
+  status      String   @default("OPEN")
+  resolution  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([bookingId])
+}
