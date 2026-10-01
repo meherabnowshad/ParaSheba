@@ -1,7 +1,6 @@
 node_modules/
 .next/
 dist/
-**/dist/
 build/
 .env
 .env.local
@@ -11,5 +10,4 @@ yarn-debug.log*
 yarn-error.log*
 .DS_Store
 *.tsbuildinfo
-**/*.tsbuildinfo
 .turbo/
