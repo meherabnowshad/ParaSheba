@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: parasheba-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: parasheba
+      POSTGRES_PASSWORD: parasheba_dev_password
+      POSTGRES_DB: parasheba_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: parasheba-redis
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.api
+    container_name: parasheba-api
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://parasheba:parasheba_dev_password@postgres:5432/parasheba_db?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: parasheba_super_secret_jwt_key_2026
+      PORT: 4000
+    ports:
+      - '4000:4000'
+    depends_on:
+      - postgres
+      - redis
+
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.web
+    container_name: parasheba-web
+    restart: always
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+      PORT: 3000
+    ports:
+      - '3000:3000'
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:

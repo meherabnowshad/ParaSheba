@@ -1,32 +1,20 @@
 {
-  "name": "parasheba-monorepo",
+  "name": "parasheba",
   "version": "1.0.0",
   "private": true,
-  "description": "ParaSheba — Bangladesh Full-Service Local Services Marketplace & Platform",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
     "dev:web": "npm run dev --workspace=@parasheba/web",
     "dev:api": "npm run dev --workspace=@parasheba/api",
-    "build": "npm run build --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
-    "clean": "npm run clean --workspaces --if-present"
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces"
   },
-  "keywords": [
-    "parasheba",
-    "bangladesh",
-    "marketplace",
-    "services",
-    "booking",
-    "karigor",
-    "caregiver",
-    "rental",
-    "emergency"
-  ],
-  "author": "ParaSheba Engineering",
-  "license": "UNLICENSED"
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
 }
+
